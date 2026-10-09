@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#101816" />
+    <title>Phone Sensor Hub | AI Dead Reckoning</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="sensor.css" />
+  </head>
+  <body>
+    <main class="sensor-shell">
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <a class="brand" href="index.html" aria-label="Dead Reckoning home">
+          <span class="brand-mark" aria-hidden="true">DR</span>
+          <span>
+            <span class="eyebrow">Mobile Telemetry Node</span>
+            <strong>Phone Sensor Hub</strong>
+          </span>
+        </a>
+        <div class="topbar-meta">
+          <span id="header-status-pill" class="status-pill is-pending">
+            <i></i><span id="header-status-text">DISCONNECTED</span>
+          </span>
+        </div>
+      </header>
+
+      <!-- SECURITY CONTEXT BANNER -->
+      <section id="security-banner" class="security-card" aria-label="Security Context">
+        <div class="security-header">
+          <span class="security-title">BROWSER SECURITY CONTEXT</span>
+          <span id="secure-context-badge" class="badge badge-pending">CHECKING...</span>
+        </div>
+        <div id="secure-context-notice" class="security-message" hidden>
+          <div class="warning-box">
+            <span class="warning-icon" aria-hidden="true">⚠</span>
+            <div>
+              <strong>HTTPS is required for phone GPS/motion access in this browser.</strong>
+              <p>
+                Modern Android Chrome restricts <code>navigator.geolocation</code> and
+                <code>DeviceMotionEvent</code> to Secure Contexts. Ordinary HTTP over a local IP
+                (e.g., <code>http://192.168.x.x:5500</code>) is considered insecure by modern browsers.
+              </p>
+              <details class="security-details">
+                <summary>How to enable sensor access on Android Chrome</summary>
+                <ol>
+                  <li>
+                    <strong>Option A (Recommended - USB Port Forwarding):</strong> Connect your phone via USB, open
+                    <code>chrome://inspect/#devices</code> on your laptop, and forward port <code>5500</code> and
+                    <code>8000</code>. Then open <code>http://localhost:5500/sensor.html</code> on the phone (Chrome treats
+                    <code>localhost</code> as a secure context).
+                  </li>
+                  <li>
+                    <strong>Option B (Chrome Insecure Origin Flag):</strong> On your phone's Chrome browser, navigate to
+                    <code>chrome://flags/#unsafely-treat-insecure-origin-as-treat-secure</code>, add your laptop's URL
+                    (e.g., <code>http://&lt;LAPTOP_IP&gt;:5500</code>), enable the flag, and restart Chrome.
+                  </li>
+                  <li>
+                    <strong>Option C (Local HTTPS):</strong> Serve the frontend using an HTTPS local server (e.g.,
+                    via <code>mkcert</code> or a self-signed certificate).
+                  </li>
+                </ol>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BACKEND TARGET CONFIGURATION -->
+      <section class="card config-card" aria-label="Backend Configuration">
+        <div class="card-header">
+          <span class="eyebrow">TARGET TELEMETRY SERVER</span>
+          <span id="backend-status-pill" class="status-indicator"><i></i><span id="backend-status-label">NOT CHECKED</span></span>
+        </div>
+        <div class="config-input-row">
+          <label for="backend-url-input" class="sr-only">Backend URL</label>
+          <input
+            type="url"
+            id="backend-url-input"
+            class="config-input"
+            placeholder="http://LAPTOP_IP:8000"
+            spellcheck="false"
+            autocomplete="off"
+          />
+          <button type="button" id="apply-backend-url-btn" class="button button-secondary">
+            SET URL
+          </button>
+        </div>
+        <p class="config-hint">
+          Configured in <code>sensor.js</code> as <code>BACKEND_URL</code>. Replace with your laptop's Wi-Fi IPv4 address.
+        </p>
+      </section>
+
+      <!-- CONTROL ACTIONS -->
+      <section class="control-actions" aria-label="Sensor Controls">
+        <button type="button" id="connect-btn" class="button button-primary button-large">
+          <span class="button-symbol" aria-hidden="true">⚡</span>
+          <span id="connect-btn-text">CONNECT SENSORS</span>
+        </button>
+        <button type="button" id="disconnect-btn" class="button button-quiet button-large" disabled>
+          <span class="button-symbol" aria-hidden="true">■</span>
+          <span>DISCONNECT</span>
+        </button>
+      </section>
+
+      <!-- ERROR / STATUS BANNER -->
+      <div id="sensor-alert-banner" class="alert-banner" role="alert" hidden></div>
+
+      <!-- SENSOR TELEMETRY METRICS GRID -->
+      <div class="metrics-grid">
+        <!-- GPS CARD -->
+        <section class="card metric-card" aria-label="GPS Sensor Data">
+          <div class="card-header">
+            <div>
+              <span class="eyebrow">GLOBAL POSITIONING SYSTEM</span>
+              <h2>GPS Sensors</h2>
+            </div>
+            <span id="gps-status-pill" class="status-indicator"><i></i><span id="gps-status-text">INACTIVE</span></span>
+          </div>
+
+          <div class="data-pairs">
+            <div class="data-pair">
+              <span class="data-label">LATITUDE</span>
+              <span class="data-value" id="val-latitude">--</span>
+            </div>
+            <div class="data-pair">
+              <span class="data-label">LONGITUDE</span>
+              <span class="data-value" id="val-longitude">--</span>
+            </div>
+            <div class="data-pair">
+              <span class="data-label">ACCURACY</span>
+              <span class="data-value" id="val-gps-accuracy">--</span>
+            </div>
+            <div class="data-pair">
+              <span class="data-label">SPEED</span>
+              <span class="data-value" id="val-gps-speed">--</span>
+            </div>
+            <div class="data-pair">
+              <span class="data-label">HEADING</span>
+              <span class="data-value" id="val-gps-heading">--</span>
+            </div>
+            <div class="data-pair">
+              <span class="data-label">GPS AVAILABLE</span>
+              <span class="data-value" id="val-gps-available">FALSE</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ACCELEROMETER CARD -->
+        <section class="card metric-card" aria-label="Accelerometer Data">
+          <div class="card-header">
+            <div>
+              <span class="eyebrow">INERTIAL MEASUREMENT</span>
+              <h2>Accelerometer</h2>
+            </div>
+            <span id="accel-status-pill" class="status-indicator"><i></i><span id="accel-status-text">INACTIVE</span></span>
+          </div>
+
+          <div class="axis-grid">
+            <div class="axis-box">
+              <span class="axis-label">ACCEL X</span>
+              <span class="axis-value" id="val-accel-x">--</span>
+              <span class="axis-unit">m/s²</span>
+            </div>
+            <div class="axis-box">
+              <span class="axis-label">ACCEL Y</span>
+              <span class="axis-value" id="val-accel-y">--</span>
+              <span class="axis-unit">m/s²</span>
+            </div>
+            <div class="axis-box">
+              <span class="axis-label">ACCEL Z</span>
+              <span class="axis-value" id="val-accel-z">--</span>
+              <span class="axis-unit">m/s²</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- GYROSCOPE CARD -->
+        <section class="card metric-card" aria-label="Gyroscope Data">
+          <div class="card-header">
+            <div>
+              <span class="eyebrow">ROTATIONAL DYNAMICS</span>
+              <h2>Gyroscope</h2>
+            </div>
+            <span id="gyro-status-pill" class="status-indicator"><i></i><span id="gyro-status-text">INACTIVE</span></span>
+          </div>
+
+          <div class="axis-grid">
+            <div class="axis-box">
+              <span class="axis-label">ALPHA (α)</span>
+              <span class="axis-value" id="val-gyro-alpha">--</span>
+              <span class="axis-unit" id="val-gyro-alpha-unit">deg/s</span>
+            </div>
+            <div class="axis-box">
+              <span class="axis-label">BETA (β)</span>
+              <span class="axis-value" id="val-gyro-beta">--</span>
+              <span class="axis-unit" id="val-gyro-beta-unit">deg/s</span>
+            </div>
+            <div class="axis-box">
+              <span class="axis-label">GAMMA (γ)</span>
+              <span class="axis-value" id="val-gyro-gamma">--</span>
+              <span class="axis-unit" id="val-gyro-gamma-unit">deg/s</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- TELEMETRY STREAM & TRANSMISSION STATS -->
+        <section class="card metric-card" aria-label="Stream Statistics">
+          <div class="card-header">
+            <div>
+              <span class="eyebrow">NETWORK TRANSMISSION</span>
+              <h2>Stream Statistics</h2>
+            </div>
+            <span id="stream-status-pill" class="status-indicator"><i></i><span id="stream-status-text">IDLE</span></span>
+          </div>
+
+          <div class="data-pairs">
+            <div class="data-pair">
+              <span class="data-label">SAMPLES TRANSMITTED</span>
+              <span class="data-value highlight-number" id="val-samples-sent">0</span>
+            </div>
+            <div class="data-pair">
+              <span class="data-label">LAST UPDATE TIME</span>
+              <span class="data-value" id="val-last-update">--</span>
+            </div>
+            <div class="data-pair">
+              <span class="data-label">BACKEND STATUS</span>
+              <span class="data-value" id="val-backend-http">WAITING</span>
+            </div>
+            <div class="data-pair">
+              <span class="data-label">TRANSMISSION RATE</span>
+              <span class="data-value" id="val-tx-rate">~4 Hz (250ms)</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- RAW PAYLOAD INSPECTOR -->
+      <section class="card inspector-card" aria-label="Payload Inspector">
+        <details class="payload-details">
+          <summary class="eyebrow payload-summary">
+            <span>INSPECT LAST TRANSMITTED JSON PAYLOAD</span>
+            <span class="details-chevron" aria-hidden="true">▾</span>
+          </summary>
+          <pre id="raw-payload-json" class="payload-code"><code>// Waiting for sensor samples...</code></pre>
+        </details>
+      </section>
+
+      <!-- NAVIGATION MONITOR QUICK LINK -->
+      <footer class="footer-strip">
+        <a href="index.html" class="button button-quiet">
+          <span>← BACK TO NAVIGATION MONITOR</span>
+        </a>
+      </footer>
+    </main>
+
+    <script src="sensor.js"></script>
+  </body>
+</html>
