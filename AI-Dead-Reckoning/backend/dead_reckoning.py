@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from schemas import NavigationStateResponse
@@ -63,7 +63,10 @@ def initialize_navigation_state() -> DeadReckoningState:
 
 
 def _clamp_speed(speed: float) -> float:
-    return max(0.0, float(speed))
+    value = float(speed)
+    if not math.isfinite(value):
+        raise ValueError("Speed must be finite.")
+    return max(0.0, value)
 
 
 def _normalize_longitude(value: float) -> float:
@@ -109,42 +112,49 @@ def propagate_dead_reckoning(
     timestamp: float,
 ) -> DeadReckoningState:
     speed = _clamp_speed(speed)
+    heading_rad = float(heading)
+    current_time = float(timestamp)
+    if not math.isfinite(heading_rad):
+        raise ValueError("Heading must be finite.")
+    if not math.isfinite(current_time):
+        raise ValueError("Timestamp must be finite.")
 
     if state.last_timestamp is None:
-        state.last_timestamp = float(timestamp)
+        state.last_timestamp = current_time
         state.last_speed = speed
-        state.last_heading = float(heading)
+        state.last_heading = heading_rad
         state.status = "First sensor update received"
         return state
 
-    current_time = float(timestamp)
     dt = current_time - state.last_timestamp
 
     if dt <= 0:
         state.last_speed = speed
-        state.last_heading = float(heading)
+        state.last_heading = heading_rad
         state.status = "Timestamp not advanced; keeping last state"
         return state
 
     dt = min(dt, 60.0)
     distance = speed * dt
-
-    heading_rad = float(heading)
-    dx = distance * math.cos(heading_rad)
-    dy = distance * math.sin(heading_rad)
-
-    lat_radians = math.radians(state.estimated_latitude)
-    cos_lat = math.cos(lat_radians)
-    if abs(cos_lat) < 1e-9:
-        cos_lat = 1e-9
-
-    latitude_change = math.degrees(dy / EARTH_RADIUS_METERS)
-    longitude_change = math.degrees(dx / (EARTH_RADIUS_METERS * cos_lat))
-
-    state.estimated_latitude = _normalize_latitude(state.estimated_latitude + latitude_change)
-    state.estimated_longitude = _normalize_longitude(state.estimated_longitude + longitude_change)
+    if distance > 0:
+        # Internal heading uses east=0 and north=pi/2. Convert it to a
+        # geodesic bearing measured clockwise from true north.
+        bearing = (math.pi / 2.0 - heading_rad) % (2.0 * math.pi)
+        latitude_1 = math.radians(state.estimated_latitude)
+        longitude_1 = math.radians(state.estimated_longitude)
+        angular_distance = distance / EARTH_RADIUS_METERS
+        latitude_2 = math.asin(
+            math.sin(latitude_1) * math.cos(angular_distance)
+            + math.cos(latitude_1) * math.sin(angular_distance) * math.cos(bearing)
+        )
+        longitude_2 = longitude_1 + math.atan2(
+            math.sin(bearing) * math.sin(angular_distance) * math.cos(latitude_1),
+            math.cos(angular_distance) - math.sin(latitude_1) * math.sin(latitude_2),
+        )
+        state.estimated_latitude = _normalize_latitude(math.degrees(latitude_2))
+        state.estimated_longitude = _normalize_longitude(math.degrees(longitude_2))
     state.last_speed = speed
-    state.last_heading = float(heading)
+    state.last_heading = heading_rad
     state.last_timestamp = current_time
     state.time_since_last_gps += dt
     state.distance_since_last_gps += distance

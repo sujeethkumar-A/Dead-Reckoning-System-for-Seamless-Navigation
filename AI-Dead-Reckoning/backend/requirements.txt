@@ -6,3 +6,4 @@ email-validator
 joblib
 xgboost
 scikit-learn
+requests

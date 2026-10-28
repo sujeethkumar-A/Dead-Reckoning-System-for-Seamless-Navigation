@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#101816" />
+    <meta name="theme-color" content="#f8fafc" />
     <title>Dead Reckoning | Navigation Console</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=nearby-speed-demo-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -18,16 +18,20 @@
           <span class="brand-mark" aria-hidden="true">DR</span>
           <span><span class="eyebrow">Navigation systems lab</span><strong>Dead Reckoning</strong></span>
         </a>
+        <div class="mode-switch" role="group" aria-label="Select dashboard mode">
+          <button id="real-mode-btn" class="button mode-button is-selected" type="button" aria-pressed="true">REAL SENSOR</button>
+          <button id="demo-mode-btn" class="button mode-button" type="button" aria-pressed="false">LAPTOP DEMO</button>
+        </div>
         <div class="topbar-meta">
-          <a href="sensor.html" class="button button-quiet" style="text-decoration:none;font-size:10px;padding:6px 10px;">📱 PHONE SENSOR HUB</a>
-          <span class="session-label">LIVE SIMULATION</span>
+          <a href="sensor.html" class="button button-quiet phone-link">PHONE SENSOR HUB</a>
+          <span id="source-label" class="session-label">REAL SENSOR MODE</span>
           <span id="backend-status" class="status-pill is-pending"><i></i><span>CHECKING BACKEND</span></span>
         </div>
       </header>
 
       <section class="page-heading" id="dashboard">
         <div>
-          <p class="eyebrow">Field console <span class="heading-divider">/</span> Session 01</p>
+          <p class="eyebrow">Field console <span class="heading-divider">/</span> Live dashboard</p>
           <h1>Navigation monitor</h1>
         </div>
         <div class="heading-state">
@@ -36,17 +40,103 @@
         </div>
       </section>
 
-      <section class="control-strip" aria-label="Navigation controls">
+      <span id="mode-description" class="mode-description">Reading real phone measurements received by FastAPI. Open the Phone Sensor Hub on Android to connect a device.</span>
+      <div id="demo-banner" class="demo-banner" hidden>DEMO MODE — all sensor readings and GPS fixes below are simulated; no phone is connected.</div>
+
+      <section class="control-strip" aria-label="Navigation and demonstration controls">
         <div class="control-group">
-          <button id="start-btn" class="button button-start" type="button"><span class="button-symbol" aria-hidden="true">▶</span>START</button>
-          <button id="stop-btn" class="button" type="button" disabled><span class="button-symbol" aria-hidden="true">■</span>STOP</button>
+          <button id="start-btn" class="button button-start" type="button"><span class="button-symbol" aria-hidden="true">▶</span>START DEMO</button>
+          <button id="pause-demo-btn" class="button button-quiet" type="button" disabled>PAUSE DEMO</button>
+          <button id="resume-demo-btn" class="button button-quiet" type="button" disabled>RESUME DEMO</button>
           <button id="reset-btn" class="button button-quiet" type="button"><span class="button-symbol" aria-hidden="true">↺</span>RESET</button>
         </div>
         <div class="control-group control-group-secondary">
           <button id="gps-loss-btn" class="button button-warning" type="button" disabled><span class="button-symbol" aria-hidden="true">⌁</span>SIMULATE GPS LOSS</button>
           <button id="gps-restore-btn" class="button button-quiet" type="button" disabled><span class="button-symbol" aria-hidden="true">⌖</span>RESTORE GPS</button>
-          <button id="ml-btn" class="button button-ml" type="button" aria-pressed="false"><span class="button-symbol" aria-hidden="true">◎</span><span id="ml-button-label">ML OFF</span></button>
         </div>
+        <button id="export-diagnostics-btn" class="button button-quiet" type="button" title="Downloads the current sensor sample, navigation state, and visible track as a JSON file.">EXPORT</button>
+      </section>
+
+      <section class="planning-panel panel" aria-label="Route planning">
+        <details id="route-details" open>
+          <summary>
+            <span><span class="eyebrow">ROUTE PLANNING</span><strong>Choose a destination</strong></span>
+            <span id="route-provider-note" class="provider-note">OpenStreetMap search · walking and driving routes</span>
+          </summary>
+          <div class="route-fields">
+            <div class="route-field route-origin-field">
+              <label for="origin-input"><span class="route-point-badge is-origin">A</span><span>STARTING POINT</span></label>
+              <div class="route-input-row">
+                <input id="origin-input" type="search" autocomplete="off" placeholder="Current location or place" />
+                <button id="use-location-btn" class="button button-quiet" type="button" title="Use this browser's current location">USE LOCATION</button>
+                <button id="pick-origin-btn" class="button button-quiet map-pick-btn" type="button">PICK ON MAP</button>
+              </div>
+              <div id="origin-results" class="search-results" role="listbox" hidden></div>
+            </div>
+            <div class="route-field route-destination-field">
+              <label for="destination-input"><span class="route-point-badge is-destination">B</span><span>DESTINATION</span></label>
+              <div class="route-input-row">
+                <input id="destination-input" type="search" autocomplete="off" placeholder="Search a place or address" />
+                <button id="pick-destination-btn" class="button button-quiet map-pick-btn" type="button">PICK ON MAP</button>
+              </div>
+              <div id="destination-results" class="search-results" role="listbox" hidden></div>
+            </div>
+            <div class="route-field route-profile-field">
+              <label for="route-profile">TRAVEL MODE</label>
+              <select id="route-profile" class="route-profile">
+                <option value="foot">Walking</option>
+                <option value="car">Driving</option>
+              </select>
+            </div>
+            <div class="route-actions">
+              <button id="calculate-route-btn" class="button button-primary" type="button">FIND ROUTE</button>
+              <button id="clear-route-btn" class="button button-quiet" type="button">CLEAR</button>
+            </div>
+          </div>
+          <section class="nearby-panel" aria-labelledby="nearby-title">
+            <div class="nearby-heading">
+              <div>
+                <p class="eyebrow">EXPLORE AROUND YOUR START</p>
+                <h2 id="nearby-title">Nearby places</h2>
+                <p id="nearby-location-status" class="nearby-location-status">Set your starting location to find nearby places.</p>
+              </div>
+              <button id="nearby-use-location-btn" class="button button-quiet" type="button">SET MY LOCATION</button>
+            </div>
+            <div class="nearby-categories" role="group" aria-label="Nearby place categories">
+              <button class="nearby-category" type="button" data-nearby-category="restaurant" aria-pressed="false"><span aria-hidden="true">☕</span>Restaurants</button>
+              <button class="nearby-category" type="button" data-nearby-category="fuel" aria-pressed="false"><span aria-hidden="true">⛽</span>Petrol</button>
+              <button class="nearby-category" type="button" data-nearby-category="hotel" aria-pressed="false"><span aria-hidden="true">⌂</span>Hotels</button>
+              <button class="nearby-category" type="button" data-nearby-category="atm" aria-pressed="false"><span aria-hidden="true">₹</span>ATMs</button>
+              <button class="nearby-category" type="button" data-nearby-category="grocery" aria-pressed="false"><span aria-hidden="true">🛒</span>Grocery</button>
+            </div>
+            <div id="nearby-results" class="nearby-results" aria-live="polite"></div>
+          </section>
+          <div id="route-message" class="route-message" role="status" aria-live="polite">Set a start and destination, then request a route.</div>
+          <div id="route-summary" class="route-summary" hidden>
+            <div id="route-overview" class="route-overview"></div>
+            <div id="route-choice-list" class="route-choice-list" aria-label="Available routes"></div>
+          </div>
+          <div class="route-navigation-controls">
+            <button id="start-navigation-btn" class="button button-primary" type="button" disabled>START NAVIGATION</button>
+            <button id="simulate-route-btn" class="button button-demo-route" type="button" title="Follows the selected route with clearly labelled simulated samples; real sensor data is not changed." disabled>SIMULATE THIS ROUTE · DEMO ONLY</button>
+            <button id="pause-navigation-btn" class="button button-quiet" type="button" disabled>PAUSE</button>
+            <button id="resume-navigation-btn" class="button button-quiet" type="button" disabled>RESUME</button>
+            <button id="stop-navigation-btn" class="button button-quiet" type="button" disabled>STOP</button>
+            <button id="follow-location-btn" class="button button-quiet" type="button" aria-pressed="false">FOLLOW LOCATION: OFF</button>
+          </div>
+          <div id="route-guidance" class="route-guidance" hidden>
+            <div><span>NEXT MANEUVER</span><strong id="next-maneuver">--</strong></div>
+            <div><span>REMAINING</span><strong id="route-remaining">--</strong></div>
+            <div><span>ARRIVAL</span><strong id="route-arrival">--</strong></div>
+            <div class="route-progress"><div><span>ROUTE PROGRESS</span><strong id="route-progress-label">0%</strong></div><progress id="route-progress" max="100" value="0">0%</progress></div>
+            <ol id="turn-list" class="turn-list" aria-label="Route directions"></ol>
+          </div>
+          <div class="recent-destinations">
+            <div><strong>Recent destinations</strong><button id="clear-recents-btn" class="text-button" type="button">CLEAR HISTORY</button></div>
+            <div id="recent-list" class="recent-list">No saved destinations on this device.</div>
+          </div>
+          <p class="map-disclosure">Walking and driving routes use public OpenStreetMap-based demo services. They require internet, can be rate-limited, and are not safety-critical navigation. Route alternatives are sorted by distance; map tiles and address search require internet.</p>
+        </details>
       </section>
 
       <div id="error-banner" class="error-banner" role="alert" hidden></div>
@@ -61,18 +151,23 @@
             <div class="map-legend" aria-label="Map legend">
               <span><i class="legend-gps"></i>GPS reference</span>
               <span><i class="legend-dr"></i>DR estimate</span>
+              <span><i class="legend-truth"></i>Simulation truth</span>
             </div>
           </div>
           <div class="map-frame">
             <div id="map" role="img" aria-label="Map showing current navigation position and travelled path"></div>
+            <div class="map-tools" aria-label="Map actions">
+              <button id="recenter-map-btn" class="map-tool-button" type="button" title="Recenter on the current navigation position">◎ <span>Recenter</span></button>
+              <button id="show-route-btn" class="map-tool-button" type="button" title="Fit the map to the full route" disabled>↔ <span>Show route</span></button>
+            </div>
             <svg id="fallback-map" viewBox="0 0 800 460" role="img" aria-label="Two-dimensional estimated travel path" hidden>
               <defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(150,177,157,.12)" stroke-width="1" /></pattern></defs>
               <rect width="800" height="460" fill="url(#grid)" />
               <path id="fallback-path-gps" class="fallback-path gps-path" d="" />
               <path id="fallback-path-dr" class="fallback-path dr-path" d="" />
-              <circle id="fallback-gps-point" class="fallback-gps-point" r="8" cx="400" cy="230" />
-              <circle id="fallback-position" class="fallback-position" r="7" cx="400" cy="230" />
-              <text id="fallback-label" x="416" y="226">POSITION</text>
+              <circle id="fallback-gps-point" class="fallback-gps-point" r="8" cx="400" cy="230" hidden />
+              <circle id="fallback-position" class="fallback-position" r="7" cx="400" cy="230" hidden />
+              <text id="fallback-label" x="416" y="226" hidden>POSITION</text>
             </svg>
             <div class="map-stamp"><span id="nav-mode" class="mode-pill">GPS</span><span id="gps-status" class="gps-label">GPS AVAILABLE</span></div>
             <div class="map-coordinates"><span>LAT <b id="map-lat">--</b></span><span>LON <b id="map-lon">--</b></span></div>
@@ -86,12 +181,12 @@
         <section class="telemetry-panel panel">
           <div class="panel-heading telemetry-heading">
             <div><p class="eyebrow">Backend stream</p><h2>Telemetry</h2></div>
-            <span class="stream-indicator"><i></i>LIVE</span>
+            <span id="stream-indicator" class="stream-indicator"><i></i>CHECKING</span>
           </div>
           <div class="primary-metrics">
-            <article class="metric metric-position"><span>Latitude</span><strong id="lat-value">--</strong><small>degrees north / south</small></article>
-            <article class="metric metric-position"><span>Longitude</span><strong id="lon-value">--</strong><small>degrees east / west</small></article>
-            <article class="metric"><span>Speed</span><strong id="speed-value">-- <small>m/s</small></strong></article>
+            <article class="metric metric-position"><span>Latitude</span><strong id="lat-value">--</strong><small id="position-quality">Waiting for a valid position</small></article>
+            <article class="metric metric-position"><span>Longitude</span><strong id="lon-value">--</strong><small id="position-quality-secondary">Waiting for a valid position</small></article>
+            <article class="metric"><span>Speed</span><strong id="speed-value">-- <small>km/h</small></strong></article>
             <article class="metric"><span>Heading</span><strong id="heading-value">-- <small>°</small></strong></article>
           </div>
           <div class="telemetry-table">
@@ -99,17 +194,89 @@
             <div class="table-label">NAVIGATION MODE</div><strong id="mode-value" class="value-state">WAITING</strong>
             <div class="table-label">TIME SINCE GPS</div><strong id="time-gps-value" class="mono-value">-- s</strong>
             <div class="table-label">DISTANCE SINCE GPS</div><strong id="distance-gps-value" class="mono-value">-- m</strong>
-            <div class="table-label">ML STATUS</div><strong id="ml-status" class="value-state">ML DISABLED</strong>
-            <div class="table-label">PREDICTED VELOCITY ERROR</div><strong id="ml-error-value" class="mono-value">Unavailable</strong>
-            <div class="table-label">ML CORRECTED SPEED</div><strong id="ml-speed-value" class="mono-value">Unavailable</strong>
           </div>
-          <p class="experimental-note"><span aria-hidden="true">ⓘ</span> Experimental ML correction. Baseline dead reckoning remains authoritative.</p>
+          <div class="sensor-readings">
+            <div class="sensor-reading-heading"><span>ACCELEROMETER</span><span id="accel-source" class="reading-source">WAITING</span></div>
+            <div class="sensor-reading-grid">
+              <div><span>X</span><strong id="accel-x">--</strong><small>m/s²</small></div>
+              <div><span>Y</span><strong id="accel-y">--</strong><small>m/s²</small></div>
+              <div><span>Z</span><strong id="accel-z">--</strong><small>m/s²</small></div>
+            </div>
+            <div class="sensor-reading-heading"><span>GYROSCOPE ROTATION</span><span id="gyro-source" class="reading-source">WAITING</span></div>
+            <div class="sensor-reading-grid">
+              <div><span>ALPHA</span><strong id="gyro-alpha">--</strong><small>device units</small></div>
+              <div><span>BETA</span><strong id="gyro-beta">--</strong><small>device units</small></div>
+              <div><span>GAMMA</span><strong id="gyro-gamma">--</strong><small>device units</small></div>
+            </div>
+          </div>
+          <p id="ml-note" class="experimental-note"><span aria-hidden="true">ⓘ</span> ML model status is being checked. ML is not applied to the real-time sensor or demo navigation flow.</p>
         </section>
+      </section>
+      <section class="reliability-panel panel" aria-labelledby="reliability-title">
+        <div class="reliability-heading">
+          <div><p class="eyebrow">Reliability &amp; recovery</p><h2 id="reliability-title">What the system can currently support</h2></div>
+          <span id="reliability-status" class="reliability-status is-pending">CHECKING</span>
+        </div>
+        <p id="reliability-detail" class="reliability-detail" aria-live="polite">Waiting for backend navigation and sensor status.</p>
+        <div class="reliability-facts">
+          <div><span>PHONE STREAM</span><strong id="sensor-freshness">Waiting for sample</strong></div>
+          <div><span>GPS FIX QUALITY</span><strong id="gps-quality">Not available</strong></div>
+        </div>
+        <div class="recovery-options">
+          <p><strong>Recovery options</strong> A new valid GPS fix automatically re-anchors navigation. If the position estimate is unavailable, reconnect the phone's GPS; the displayed last fix is reference-only.</p>
+          <p><strong>Other project features</strong> Demo Mode is isolated simulated data for demonstrating flows, not a real-position fallback. The ML model is not applied to real-time navigation. Accelerometer and gyroscope readings are telemetry only and are not treated as speed or heading.</p>
+        </div>
+        <p class="diagnostics-note">Diagnostics export stays in your browser download and can include precise location and sensor readings. Review it before sharing.</p>
+      </section>
+      <section class="simulation-panel panel" aria-label="Laptop simulation controls">
+        <details id="simulation-details">
+          <summary>
+            <span><span class="eyebrow">LAPTOP DEMO</span><strong>Walk a planned route without leaving your desk</strong></span>
+            <span class="provider-note">Simulated GPS follows the selected route</span>
+          </summary>
+          <div class="simulation-controls">
+            <label>Start latitude · sim only <span><input id="simulation-start-lat" type="number" min="-90" max="90" step="0.000001" value="12.971600" />°</span></label>
+            <label>Start longitude · sim only <span><input id="simulation-start-lon" type="number" min="-180" max="180" step="0.000001" value="77.594560" />°</span></label>
+            <label>Pattern
+              <select id="simulation-pattern">
+                <option value="STRAIGHT">Straight</option>
+                <option value="LEFT_TURN">Left turn</option>
+                <option value="RIGHT_TURN">Right turn</option>
+                <option value="STOP">Stationary</option>
+                <option value="SPEED_CHANGE">Speed changes</option>
+              </select>
+            </label>
+            <label>Initial heading <span><input id="simulation-heading" type="number" min="0" max="359" value="0" />° true north</span></label>
+            <label>Demo speed cap <span><select id="simulation-speed">
+              <option value="5" selected>5 km/h</option>
+            </select></span></label>
+            <label>Speed multiplier <span><input id="simulation-rate" type="number" min="0.25" max="4" step="0.25" value="1" />×</span></label>
+            <label>GPS speed noise <span><input id="simulation-noise" type="number" min="0" max="10" step="0.1" value="0" />m/s</span></label>
+            <label>Heading error <span><input id="simulation-heading-error" type="number" min="-45" max="45" step="1" value="0" />°</span></label>
+            <label>Planned GPS outage <span><input id="simulation-outage" type="number" min="0" max="3600" step="5" value="30" />s</span></label>
+          </div>
+          <p id="simulation-speed-help" class="map-disclosure">Walking demo only: choose a walking-speed cap. The real sensor mode is unchanged.</p>
+          <div class="simulation-readout">
+            <span>SIM GROUND TRUTH <strong id="simulation-ground-truth">--</strong></span>
+            <span>ESTIMATE ERROR <strong id="simulation-error">--</strong></span>
+            <span>GPS OUTAGE <strong id="simulation-outage-time">0.0 s</strong></span>
+            <span>MODE TRANSITIONS <strong id="transition-count">0</strong></span>
+          </div>
+          <div class="simulation-chart-wrap">
+            <span>SIMULATION POSITION ERROR (REFERENCE COMPARISON ONLY)</span>
+            <canvas id="simulation-error-chart" height="100" aria-label="Simulation error over time"></canvas>
+          </div>
+          <div class="saved-sessions">
+            <div><strong>Saved simulation sessions</strong><button id="clear-sessions-btn" class="text-button" type="button">CLEAR</button></div>
+            <div id="saved-sessions-list" class="recent-list">No saved sessions on this device.</div>
+          </div>
+          <p class="map-disclosure">Ground truth and its error comparison are simulation-only and are never sent to the real sensor endpoint or used as dead-reckoning inputs. Simulated sensor streams are deterministic, not physical measurements.</p>
+        </details>
       </section>
       <footer class="page-footer"><span>DEAD RECKONING SYSTEM</span><span>GPS reference <i></i> Estimated path <i></i> OpenStreetMap</span></footer>
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="script.js" defer></script>
+    <script src="script.js?v=nearby-speed-demo-1" defer></script>
   </body>
 </html>

@@ -18,6 +18,7 @@ const sensorState = {
   // GPS
   latitude: null,
   longitude: null,
+  gps_timestamp: null,
   gps_accuracy: null,
   gps_speed: null,
   gps_heading: null,
@@ -184,20 +185,23 @@ function handleDeviceOrientation(event) {
 function handleGpsSuccess(position) {
   const coords = position.coords;
 
-  sensorState.latitude = coords.latitude !== null && !isNaN(coords.latitude) ? Number(coords.latitude) : null;
-  sensorState.longitude = coords.longitude !== null && !isNaN(coords.longitude) ? Number(coords.longitude) : null;
-  sensorState.gps_accuracy = coords.accuracy !== null && !isNaN(coords.accuracy) ? Number(coords.accuracy) : null;
-  sensorState.gps_speed = coords.speed !== null && !isNaN(coords.speed) ? Number(coords.speed) : null;
-  sensorState.gps_heading = coords.heading !== null && !isNaN(coords.heading) ? Number(coords.heading) : null;
-  sensorState.gps_available = sensorState.latitude !== null && sensorState.longitude !== null;
+  sensorState.latitude = Number.isFinite(coords.latitude) ? Number(coords.latitude) : null;
+  sensorState.longitude = Number.isFinite(coords.longitude) ? Number(coords.longitude) : null;
+  sensorState.gps_timestamp = Number.isFinite(position.timestamp) ? position.timestamp / 1000.0 : null;
+  sensorState.gps_accuracy = Number.isFinite(coords.accuracy) ? Number(coords.accuracy) : null;
+  sensorState.gps_speed = Number.isFinite(coords.speed) ? Number(coords.speed) : null;
+  sensorState.gps_heading = Number.isFinite(coords.heading) ? Number(coords.heading) : null;
+  sensorState.gps_available = sensorState.latitude !== null
+    && sensorState.longitude !== null
+    && sensorState.gps_timestamp !== null;
 
   elements.gpsStatusPill.className = "status-indicator is-active";
-  elements.gpsStatusText.textContent = "FIX ACQUIRED";
+  elements.gpsStatusText.textContent = sensorState.gps_available ? "FIX ACQUIRED" : "INVALID GPS FIX";
 
   elements.valLatitude.textContent = sensorState.latitude !== null ? sensorState.latitude.toFixed(6) : "--";
   elements.valLongitude.textContent = sensorState.longitude !== null ? sensorState.longitude.toFixed(6) : "--";
   elements.valGpsAccuracy.textContent = sensorState.gps_accuracy !== null ? `±${sensorState.gps_accuracy.toFixed(1)} m` : "--";
-  elements.valGpsSpeed.textContent = sensorState.gps_speed !== null ? `${sensorState.gps_speed.toFixed(2)} m/s` : "0.00 m/s";
+  elements.valGpsSpeed.textContent = sensorState.gps_speed !== null ? `${sensorState.gps_speed.toFixed(2)} m/s` : "--";
   elements.valGpsHeading.textContent = sensorState.gps_heading !== null ? `${sensorState.gps_heading.toFixed(1)}°` : "--";
   elements.valGpsAvailable.textContent = sensorState.gps_available ? "TRUE" : "FALSE";
   elements.valGpsAvailable.style.color = sensorState.gps_available ? "var(--lime)" : "var(--faint)";
@@ -205,6 +209,10 @@ function handleGpsSuccess(position) {
 
 function handleGpsError(error) {
   sensorState.gps_available = false;
+  sensorState.gps_speed = null;
+  sensorState.gps_heading = null;
+  elements.valGpsSpeed.textContent = "--";
+  elements.valGpsHeading.textContent = "--";
   elements.valGpsAvailable.textContent = "FALSE";
   elements.valGpsAvailable.style.color = "var(--red)";
 
@@ -240,6 +248,7 @@ async function sendSensorSample() {
   // Build exact required JSON payload
   const payload = {
     timestamp: timestampSeconds,
+    gps_timestamp: sensorState.gps_timestamp,
     latitude: sensorState.latitude,
     longitude: sensorState.longitude,
     gps_accuracy: sensorState.gps_accuracy,

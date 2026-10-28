@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -37,17 +37,37 @@ class NavigationStateResponse(BaseModel):
 
 
 class SensorDataPayload(BaseModel):
-    timestamp: float = Field(..., description="Sensor timestamp (seconds)")
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    gps_accuracy: Optional[float] = None
-    gps_speed: Optional[float] = None
-    gps_heading: Optional[float] = None
+    timestamp: float = Field(
+        ...,
+        ge=0.0,
+        allow_inf_nan=False,
+        description="Sensor timestamp (seconds)",
+    )
+    source: Literal["real", "demo"] = Field(
+        default="real",
+        description="Origin of this sensor sample",
+    )
+    gps_timestamp: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        allow_inf_nan=False,
+        description="Timestamp of the last browser GPS fix (seconds since epoch)",
+    )
+    latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0, allow_inf_nan=False)
+    longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0, allow_inf_nan=False)
+    gps_accuracy: Optional[float] = Field(default=None, ge=0.0, allow_inf_nan=False)
+    gps_speed: Optional[float] = Field(default=None, ge=0.0, allow_inf_nan=False)
+    gps_heading: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=360.0,
+        allow_inf_nan=False,
+        description="GPS course over ground in degrees clockwise from north",
+    )
     gps_available: bool = False
-    accel_x: Optional[float] = None
-    accel_y: Optional[float] = None
-    accel_z: Optional[float] = None
-    gyro_alpha: Optional[float] = None
-    gyro_beta: Optional[float] = None
-    gyro_gamma: Optional[float] = None
-
+    accel_x: Optional[float] = Field(default=None, allow_inf_nan=False)
+    accel_y: Optional[float] = Field(default=None, allow_inf_nan=False)
+    accel_z: Optional[float] = Field(default=None, allow_inf_nan=False)
+    gyro_alpha: Optional[float] = Field(default=None, allow_inf_nan=False)
+    gyro_beta: Optional[float] = Field(default=None, allow_inf_nan=False)
+    gyro_gamma: Optional[float] = Field(default=None, allow_inf_nan=False)
